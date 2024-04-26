@@ -23,6 +23,7 @@ from models.utils import *
 cudnn.enabled = True
 benchmark = True
 
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 
 def get_loss(logits, logits_mixed, y_a, y_b=None, features=None, mixed_features=None, lam=1, base_weight=1, gamma=1, mixed_loss=True, weight=None):
     w = weight
