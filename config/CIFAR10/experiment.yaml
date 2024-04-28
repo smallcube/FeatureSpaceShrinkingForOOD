@@ -9,7 +9,7 @@ dataset:
   use_gpu: true
 networks:
   def_file: ./models/ResNet_Cifar.py
-  params: {depth: 32, num_classes: 10}
+  params: {depth: 18, num_classes: 10, normalized: true, scale: 30}
 
 model_dir: null
 optim_params: {lr: 0.1, momentum: 0.9, weight_decay: 0.0001}
@@ -24,6 +24,6 @@ training_opt:
   mixed_loss: false
   alpha: 1
   mixer_type: mixup
-  base_weight: 0.5
+  base_weight: 1
   gamma: 2
   
