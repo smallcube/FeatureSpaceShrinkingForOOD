@@ -49,7 +49,10 @@ def save_checkpoint(states, filename):
 def score_func(D, first_sing_vecs):
     measure = first_sing_vecs
     corr = correlation(measure, D)
-    score = np.arccos(corr)
+    
+    #modified by Bigcircle
+    score = np.arccos(corr) 
+    #score = corr
     if len(corr.shape) == 3:
         score = np.min(score, axis=1)
         score = np.min(score, axis=0)
@@ -59,8 +62,57 @@ def score_func(D, first_sing_vecs):
 
     return score
 
+def get_svd_per_class(train, labels, topN=0.6):
+    svd_per_class = []
+    for l in set(labels):
+        data = np.array(train[labels == l])
+        data = data.transpose()
 
-def calculate_sing_vec(A):
+        #print("data.shape=", data.shape)
+
+        USV = np.linalg.svd(data)
+        K = round( min(USV[0].shape[0], USV[0].shape[1])*topN)
+        #print(USV[0][:, 0:K].shape)
+        svd_per_class.append(USV[0][:, 0:K])
+    
+    return svd_per_class
+
+def score_func_svd(D, first_sing_vecs, split_N=10, top_N=0.6):
+    scores = []
+    for current_pos in range(0, D.shape[0], split_N):
+        test_feature = D[current_pos:current_pos+split_N, :] if current_pos+split_N<=D.shape[0] else D[current_pos:, :]
+        #original_features = test_feature / np.linalg.norm(test_feature, axis=1, ord=2, keepdims=True)
+        original_features = test_feature
+        similar = []
+        
+        for i, first_sing_vecs_i in enumerate(first_sing_vecs):
+            data = np.concatenate([first_sing_vecs_i, test_feature.transpose()], axis=1)
+            K = round(min(data.shape[0], data.shape[1])*top_N)
+            U, S, V = np.linalg.svd(data)
+            U_k = U[:, :K]
+            S_k = np.diag(S[:K])
+            V_k = V[:K, :]
+            #print("U_k.shape=", U_k.shape, "   S_k.shape=", S_k.shape, "  V_k.shape=", V_k.shape, "   k=", K, "   V.shape=", V.shape)
+            reconstructed = U_k@S_k@V_k
+            reconstructed_features = reconstructed[:, -test_feature.shape[0]:]
+
+            
+            #reconstructed_features = reconstructed_features / np.linalg.norm(reconstructed_features, axis=0, ord=2, keepdims=True)
+            cosine_similirty = original_features @ reconstructed_features
+
+            cosine_similirty = np.diag(cosine_similirty).reshape(-1, 1)
+            #print("i=", i, "   cosine_similirty=", cosine_similirty, "    shape=", cosine_similirty.shape)
+            similar += [np.abs(cosine_similirty)]
+
+        similar = np.concatenate(similar, axis=1)
+        scores += [similar]
+    scores = np.concatenate(scores, axis=0)
+    #print(scores, "   shape=", scores.shape)
+    return scores
+
+
+
+def calculate_sing_vec(A, topN=1):
     try:
         import irlb
         # print('irlb package is installed for fast svd, using irlb')
@@ -68,7 +120,9 @@ def calculate_sing_vec(A):
     except ImportError:
         # print('No irlb package installed for fast svd, using numpy')
         USV = np.linalg.svd(A)
+    
     first_sing_vec = USV[0][:, 0]
+    #print("USV.shape=", USV[0].shape, "   A.shape=", A.shape, "   sing_vec.shape=", first_sing_vec.shape)
     return first_sing_vec
 
 def preprocess(D, labels=None):
@@ -76,11 +130,16 @@ def preprocess(D, labels=None):
         data = np.array(D)
         D_out = data.transpose()
     else:
+        '''
+        data = np.array(D)
+        D_out = data.transpose()
+        '''
         D_out = []
         for l in set(labels):
             data = np.array(D[labels == l])
             if len(data) != 0:
                 D_out.append(data.transpose())
+        
     return D_out
 
 
