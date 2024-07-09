@@ -23,7 +23,7 @@ from models.utils import *
 cudnn.enabled = True
 benchmark = True
 
-#os.environ['CUDA_VISIBLE_DEVICES'] = '1'
+os.environ['CUDA_VISIBLE_DEVICES'] = '1'
 
 def get_loss(logits, logits_mixed, y_a, y_b=None, features=None, mixed_features=None, lam=1, base_weight=1, gamma=1, mixed_loss=True, weight=None):
     w = weight
@@ -123,12 +123,13 @@ def evaluate(classifier, test_loader, ood_loader, train_features, train_labels, 
     out_features = np.concatenate(out_features, axis=0)
 
     #get the sigle vectors for each class
-    first_sing_vecs = get_svd_per_class(train_features, train_labels, topN=0.6)
+    first_sing_vecs, svd_values = get_svd_per_class(train_features, train_labels, topN=0.1)
 
     features_combined = np.concatenate([test_features, out_features], axis=0)
-    scores = score_func_svd(features_combined, first_sing_vecs, split_N=1, top_N=0.6)
+    scores = score_func_svd_distance(features_combined, first_sing_vecs, split_N=1, top_N=0.9)
+    #scores = score_func_svd_weighted(features_combined, first_sing_vecs, svd_values, split_N=64, top_N=0.6)
 
-    scores = 1-np.max(scores, axis=1)
+    scores = np.min(scores, axis=1)
     print("test_scores_mean=", np.mean(scores[0:test_preds.shape[0]]), "   ood_mean=", np.mean(scores[test_preds.shape[0]:]))
     target_in = np.zeros_like(test_labels)
     target_out = np.ones_like(out_labels)
@@ -282,7 +283,7 @@ def train(config):
 
         #evaluation
         
-        if epoch>=training_opt['num_epochs']-10 :
+        if epoch>=training_opt['num_epochs']-3 :
             test_result = evaluate(classifier, data_loader['test'], data_loader['ood'], total_features, total_labels)
 
             lr_current = max([param_group['lr'] for param_group in optimizer.param_groups])
