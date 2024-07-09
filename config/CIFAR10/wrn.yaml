@@ -1,0 +1,29 @@
+coslr: true
+endlr: 0.0
+dataset:
+  batch_size: 128
+  dataset: cifar10
+  dataroot: ./data/CIFAR10
+  img_size: 32
+  num_workers: 4
+  use_gpu: true
+networks:
+  def_file: ./models/wrn.py
+  params: {model_name: wrn_40_4, num_classes: 10}
+
+model_dir: null
+optim_params: {lr: 0.1, momentum: 0.9, weight_decay: 0.0001}
+
+training_opt:
+  log_dir: ./logs/cifar10/WRN_40_4
+  num_epochs: 100
+  warmup_epoch: 5
+  num_accmutations: 1
+  step1: 100
+  step2: 150
+  mixed_loss: false
+  alpha: 1
+  mixer_type: mixup
+  base_weight: 1
+  gamma: 2
+  
