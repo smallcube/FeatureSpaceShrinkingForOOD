@@ -63,7 +63,7 @@ def score_func(D, first_sing_vecs):
     return score
 
 def get_svd_per_class(train, labels, topN=0.6):
-    svd_per_class = []
+    svd_per_class, svd_values_class = [], []
     for l in set(labels):
         data = np.array(train[labels == l])
         data = data.transpose()
@@ -74,8 +74,9 @@ def get_svd_per_class(train, labels, topN=0.6):
         K = round( min(USV[0].shape[0], USV[0].shape[1])*topN)
         #print(USV[0][:, 0:K].shape)
         svd_per_class.append(USV[0][:, 0:K])
+        svd_values_class.append(USV[1][0:K])
     
-    return svd_per_class
+    return svd_per_class, svd_values_class
 
 def score_func_svd(D, first_sing_vecs, split_N=10, top_N=0.6):
     scores = []
@@ -110,6 +111,60 @@ def score_func_svd(D, first_sing_vecs, split_N=10, top_N=0.6):
     #print(scores, "   shape=", scores.shape)
     return scores
 
+def score_func_svd_weighted(D, first_sing_vecs, svd_values, split_N=10, top_N=0.6):
+    scores = []
+    for current_pos in range(0, D.shape[0], split_N):
+        test_feature = D[current_pos:current_pos+split_N, :] if current_pos+split_N<=D.shape[0] else D[current_pos:, :]
+        #original_features = test_feature / np.linalg.norm(test_feature, axis=1, ord=2, keepdims=True)
+        original_features = test_feature
+        similar = []
+        
+        for i, first_sing_vecs_i in enumerate(first_sing_vecs):
+            corr = np.matmul(test_feature, first_sing_vecs_i)
+            #corr /= np.linalg.norm(first_sing_vecs_i, axis=0) + 1e-4
+            corr = np.abs(corr)
+            corr = np.matmul(corr, svd_values[i].reshape(-1, 1)) / np.sum(svd_values[i])
+            cosine_weighted = corr.reshape(-1, 1)
+            similar += [cosine_weighted]
+
+        similar = np.concatenate(similar, axis=1)
+        scores += [similar]
+    scores = np.concatenate(scores, axis=0)
+    #print(scores, "   shape=", scores.shape)
+    return scores
+
+def score_func_svd_distance(D, first_sing_vecs, split_N=10, top_N=0.6):
+    scores = []
+    for current_pos in range(0, D.shape[0], split_N):
+        test_feature = D[current_pos:current_pos+split_N, :] if current_pos+split_N<=D.shape[0] else D[current_pos:, :]
+        #original_features = test_feature / np.linalg.norm(test_feature, axis=1, ord=2, keepdims=True)
+        original_features = test_feature
+        similar = []
+        
+        for i, first_sing_vecs_i in enumerate(first_sing_vecs):
+            data = np.concatenate([first_sing_vecs_i, test_feature.transpose()], axis=1)
+            K = round(min(data.shape[0], data.shape[1])*top_N)
+            U, S, V = np.linalg.svd(data)
+            U_k = U[:, :K]
+            S_k = np.diag(S[:K])
+            V_k = V[:K, :]
+            #print("U_k.shape=", U_k.shape, "   S_k.shape=", S_k.shape, "  V_k.shape=", V_k.shape, "   k=", K, "   V.shape=", V.shape)
+            reconstructed = U_k@S_k@V_k
+            reconstructed_features = reconstructed[:, -test_feature.shape[0]:]
+
+            
+            #reconstructed_features = reconstructed_features / np.linalg.norm(reconstructed_features, axis=0, ord=2, keepdims=True)
+            distance = np.linalg.norm(original_features - reconstructed_features.transpose(), ord=2)
+
+            #distance = np.diag(distance).reshape(-1, 1)
+            #print("i=", i, "   cosine_similirty=", cosine_similirty, "    shape=", cosine_similirty.shape)
+            similar += [np.array(np.abs(distance)).reshape(-1, 1)]
+
+        similar = np.concatenate(similar, axis=1)
+        scores += [similar]
+    scores = np.concatenate(scores, axis=0)
+    #print(scores, "   shape=", scores.shape)
+    return scores
 
 
 def calculate_sing_vec(A, topN=1):
